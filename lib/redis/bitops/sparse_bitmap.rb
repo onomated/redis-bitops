@@ -29,7 +29,7 @@ class Redis
           @redis.del(key)
         end
         @redis.del(chunk_key_index)
-        @redis.del("#{@root_key}:tracking_chunks")
+        @redis.del("#{@root_key}:tracking_chunks") # was used at some point. So include in delete manifest
         super
       end
 
@@ -52,14 +52,7 @@ class Redis
       end
 
       def chunk_keys
-        track_chunks  unless tracking_chunks?
         @redis.smembers chunk_key_index
-      end
-
-      def sync_chunk_keys
-        @redis.keys("#{@root_key}:chunk:*").each do |key|
-          @redis.srem chunk_key_index, key  unless @redis.exists key
-        end
       end
 
       def chunk_key(i)
@@ -72,7 +65,6 @@ class Redis
       #
       def bitmap_factory
         lambda do |key|
-          @redis.set "#{key}:tracking_chunks", true
           @redis.sparse_bitmap(key, @bytes_per_chunk)
         end
       end
@@ -96,21 +88,9 @@ class Redis
             @redis.del(dest.chunk_key(i))
           end
         end
-        dest.sync_chunk_keys
       end
 
       protected
-
-      def track_chunks
-        @redis.keys("#{@root_key}:chunk:*").each do |key|
-           @redis.sadd chunk_key_index, key
-        end
-        @redis.set "#{@root_key}:tracking_chunks", true
-      end
-
-      def tracking_chunks?
-        @redis.exists "#{@root_key}:tracking_chunks"
-      end
 
       def bits_per_chunk
         @bytes_per_chunk * 8
